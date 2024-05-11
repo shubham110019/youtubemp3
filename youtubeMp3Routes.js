@@ -24,13 +24,27 @@ router.post('/getLinksmp3', async (req, res) => {
             return res.json({ success: false, error: 'No audio available for this video' });
         }
 
+        // Filter the audio format with the desired bitrate
+        const audioFormat = audioFormats.find(format => format.audioBitrate === 128);
+
+        if (!audioFormat) {
+            return res.json({ success: false, error: 'Desired audio bitrate not available for this video' });
+        }
+
         const audioStream = ytdl.downloadFromInfo(videoInfo, {
-            quality: 'highestaudio'
+            quality: audioFormat.itag
         });
 
         // Set response headers for the audio file
         res.setHeader('Content-Disposition', `attachment; filename="${videoInfo.title}.mp3"`);
         res.setHeader('Content-Type', 'audio/mpeg');
+
+        // Log the file size
+        let fileSize = 0;
+        audioStream.on('response', (response) => {
+            fileSize = parseInt(response.headers['content-length'], 10);
+            console.log(`File size: ${fileSize / (1024 * 1024)} MB`);
+        });
 
         // Pipe audio stream directly to the response
         audioStream.pipe(res);
@@ -39,6 +53,11 @@ router.post('/getLinksmp3', async (req, res) => {
         audioStream.on('error', (err) => {
             console.error('Audio stream error:', err);
             res.status(500).json({ success: false, error: 'An error occurred during audio streaming' });
+        });
+
+        // Log the file size when the response is finished
+        res.on('finish', () => {
+            console.log(`Total file size sent: ${fileSize / (1024 * 1024)} MB`);
         });
     } catch (error) {
         console.error('Error:', error);
